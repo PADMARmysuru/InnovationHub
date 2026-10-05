@@ -1,0 +1,29 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Log in · Innovation Hub</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..900&family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="css/style.css"></head><body>
+<main class="narrow">
+<div class="box"><h1>Student login</h1>
+<p>Use your <b>Digital Design Explorer</b> account: the same USN, email and password.</p>
+<form id="f"><label>USN<input id="usn" required placeholder="4GWxxECxxx" autocomplete="username"></label>
+<label>Email<input id="email" type="email" required autocomplete="email"></label>
+<label>Password<input id="pw" type="password" required autocomplete="current-password"></label>
+<button class="btn" id="go">Log in</button></form>
+<div class="msg" id="m" hidden></div>
+<p class="small">Not registered yet? Register on <a id="reg" target="_blank" rel="noopener">Digital Design Explorer</a> first, then log in here. Forgot your password? Ask your faculty to reset your registration.</p>
+<p class="small">Faculty? Use the <a href="faculty.html">Faculty</a> page.</p></div>
+</main>
+<script src="js/config.js"></script><script src="js/hub.js"></script>
+<script>
+reg.href = EXPLORER_BASE + 'login.html';
+renderShell('login.html').then(t => { if (t) location = 'student.html'; });
+f.onsubmit = async e => {
+  e.preventDefault();
+  const u = usn.value.trim().toUpperCase();
+  if (!/^4GW\d{2}EC\d{3}$/.test(u)) return msg(m, 'USN must be in the format 4GWxxECxxx (ECE students only).', 'error');
+  go.disabled = true; msg(m, 'Logging in…');
+  try{
+    const r = await rpc('dde_login', { p_usn: u, p_email: email.value.trim(), p_password: pw.value });
+    if (r && r.ok){ lset(HUB_TOKEN, r.token); location = 'student.html'; return; }
+    msg(m, r && r.error === 'not_registered' ? 'This USN is not registered on Digital Design Explorer. Please register there first.' : 'Invalid USN, email or password.', 'error');
+  }catch(err){ msg(m, errText(err), 'error'); }
+  go.disabled = false;
+};
+</script></body></html>

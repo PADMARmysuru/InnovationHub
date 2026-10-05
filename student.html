@@ -1,0 +1,110 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My Team · Innovation Hub</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..900&family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="css/style.css"></head><body>
+<main><h1>My Team</h1>
+<div class="msg" id="m" hidden></div>
+<div id="app"><p>Loading…</p></div>
+</main>
+<script src="js/config.js"></script><script src="js/hub.js"></script><script src="js/data.js"></script>
+<script>
+let st=null;
+const EDITABLE=['Forming','Selected','Changes Required'];
+
+(async()=>{
+  const user=await renderShell("student.html");
+  if(!user){ showLogin(); return; }
+  await load();
+})();
+
+function showLogin(){ app.innerHTML='<div class="box"><h2>Please log in</h2><p>Log in with your Digital Design Explorer account to form a team and track your project.</p><a class="btn" href="login.html">Log in</a></div>'; }
+async function load(){
+  try{ st=await srpc('hub_my_state'); if(!st||!st.profile){ lset(HUB_TOKEN,null); return showLogin(); } render(); }
+  catch(e){ msg(m,errText(e),'error'); app.innerHTML=''; }
+}
+
+// Run an action, show the result, reload the page data
+async function act(fn,args,okText){
+  msg(m,'Saving…');
+  try{ await srpc(fn,args); msg(m,okText||'Saved.','ok'); await load(); window.scrollTo({top:0,behavior:'smooth'}); }
+  catch(e){ msg(m,errText(e),'error'); window.scrollTo({top:0,behavior:'smooth'}); }
+}
+
+// Buttons use data-act so no user text ends up inside onclick code
+app.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]'); if(!b) return;
+  const a=b.dataset.act, v=b.dataset.v;
+  if(a==='accept') act('hub_respond_invite',{p_team:+v,p_accept:true},'You joined the team.');
+  if(a==='decline') act('hub_respond_invite',{p_team:+v,p_accept:false},'Invite declined.');
+  if(a==='create') act('hub_create_team',{p_name:document.getElementById('tn').value},'Team created. Now invite your teammates.');
+  if(a==='invite') act('hub_invite',{p_usn:document.getElementById('iu').value},'Invite sent. Your classmate must log in and accept it.');
+  if(a==='remove' && confirm('Remove '+b.dataset.name+' from the team?')) act('hub_remove_member',{p_student:v},'Member removed.');
+  if(a==='disband' && confirm('Disband this team? All members will be removed and the project released.')) act('hub_disband_team',{},'Team disbanded.');
+  if(a==='leave' && confirm('Leave this team?')) act('hub_leave_team',{},'You left the team.');
+  if(a==='submit') act('hub_submit_proposal',{p_innovation:document.getElementById('inn').value},'Proposal submitted for faculty approval.');
+  if(a==='release' && confirm('Release this project so your team can choose another?')) act('hub_release_project',{},'Project released.');
+  if(a==='update') act('hub_add_update',{p_body:document.getElementById('up').value},'Update saved.');
+});
+app.addEventListener('change',e=>{
+  if(e.target.dataset.ms) act('hub_set_milestone',{p_index:+e.target.dataset.ms,p_done:e.target.checked},'Milestone updated.');
+});
+
+function render(){
+  const p=st.profile, t=st.team;
+  const clear=p.semester&&p.section;
+  let h=`<div class="box profile"><div><b>${esc(p.name)}</b><br><span class="small">${esc(p.usn)} · Semester ${clear?p.semester:esc(p.semester_text||'?')} · Section ${clear?esc(p.section):esc(p.section_text||'?')}</span></div></div>`;
+  if(!clear) h+=`<div class="box remark"><b>Class details unclear</b><p>Your semester or section in Digital Design Explorer ("${esc(p.semester_text)}", "${esc(p.section_text)}") could not be read. Ask your faculty to correct it before forming a team.</p></div>`;
+
+  if(st.certificates.length){
+    h+=`<div class="box ok"><h2>🎓 Your certificate</h2>${st.certificates.map(c=>`<p><a class="btn" href="certificate.html?id=${encodeURIComponent(c.cert_id)}">View certificate · ${esc(c.project_title)}</a></p>`).join('')}</div>`;
+  }
+
+  if(!t){
+    if(st.invites.length){
+      h+=`<div class="box"><h2>Team invites</h2>${st.invites.map(i=>`<div class="row"><span><b>${esc(i.team_name)}</b><br><span class="small">Leader: ${esc(i.leader)} (${esc(i.leader_usn)})</span></span><span class="btns"><button class="btn" data-act="accept" data-v="${+i.team_id}">Accept</button><button class="btn danger" data-act="decline" data-v="${+i.team_id}">Decline</button></span></div>`).join('')}</div>`;
+    }
+    h+=`<div class="box"><h2>Create a team</h2><p>You become the team leader and invite ${TEAM_MIN-1} to ${TEAM_MAX-1} classmates from Semester ${p.semester}, Section ${esc(p.section)}. Waiting for an invite instead? Give your leader your USN, <b>${esc(p.usn)}</b>.</p>
+      <label>Team name<input id="tn" maxlength="60" placeholder="e.g. Logic Lions"></label>
+      <button class="btn" data-act="create">Create team</button></div>`;
+    app.innerHTML=h; return;
+  }
+
+  const leader=t.leader_id===p.id, editable=EDITABLE.includes(t.status);
+  const accepted=t.members.filter(x=>x.status==='accepted');
+  h+=`<div class="box"><div class="row"><h2>${esc(t.name)}</h2>${statusBadge(t.status)}</div>
+    <p class="small">Semester ${t.semester} · Section ${esc(t.section)} · ${accepted.length} of ${TEAM_MAX} members${leader?' · You are the leader':''}</p>
+    <ul class="members">${t.members.map(x=>`<li><span><b>${esc(x.name)}</b> <span class="small">${esc(x.usn)}</span>${x.role==='leader'?' <span class="status s-blue">Leader</span>':''}${x.status==='invited'?' <span class="status s-amber">Invite pending</span>':''}</span>${leader&&editable&&x.role!=='leader'?`<button class="linkbtn" data-act="remove" data-v="${esc(x.id)}" data-name="${esc(x.name)}">Remove</button>`:''}</li>`).join('')}</ul>
+    ${leader&&editable&&t.members.length<TEAM_MAX?`<div class="inline-form"><input id="iu" placeholder="Classmate's USN (4GWxxECxxx)"><button class="btn" data-act="invite">Invite</button></div>`:''}
+    ${accepted.length<TEAM_MIN?`<p class="small">At least ${TEAM_MIN} members must accept before the proposal can be submitted.</p>`:''}
+    ${editable?(leader?`<button class="linkbtn danger-text" data-act="disband">Disband team</button>`:`<button class="linkbtn danger-text" data-act="leave">Leave team</button>`):''}
+  </div>`;
+
+  if(t.faculty_remark){ h+=`<div class="box remark"><b>Faculty remark</b><p>${esc(t.faculty_remark)}</p></div>`; }
+
+  if(!t.project_title){
+    h+=`<div class="box"><h2>Project</h2><p>${leader?'Choose one available project for your team.':'Your leader will choose the project.'}</p><a class="btn" href="projects.html">Browse projects</a></div>`;
+  } else {
+    const proj=PROJECTS.find(x=>x.title===t.project_title)||{learn:[],idea:'',type:t.project_type};
+    h+=`<div class="box" data-type="${esc(proj.type)}"><span class="type">${esc(proj.type)} project</span><h2>${esc(t.project_title)}</h2><p>${esc(proj.idea)}</p>
+      <div class="learning-map"><strong>📚 Read first in Digital Design Explorer</strong><div class="module-links">${proj.learn.map(topicLink).join('')}</div></div>`;
+    if(['Selected','Changes Required'].includes(t.status)){
+      if(leader){
+        h+=`<label>Proposed innovation: what will your team add or improve?<textarea id="inn" maxlength="2000">${esc(t.innovation||'')}</textarea></label>
+          <span class="btns"><button class="btn" data-act="submit">${t.status==='Changes Required'?'Resubmit proposal':'Submit for faculty approval'}</button>
+          <button class="btn danger" data-act="release">Release project</button></span>`;
+      } else h+=`<p class="small">Your leader will submit the proposal.</p>`;
+    } else {
+      h+=`<p><b>Proposed innovation:</b> ${esc(t.innovation||'—')}</p>`;
+      if(t.status==='Pending Approval') h+=`<p class="small">Waiting for faculty approval. Members can no longer be changed.</p>`;
+    }
+    h+='</div>';
+  }
+
+  if(['Approved','Ready for Final Review','Completed'].includes(t.status)){
+    const open=t.status!=='Completed';
+    h+=`<div class="box"><h2>Milestones</h2><div class="bar"><i style="width:${+t.progress}%"></i></div><b>${+t.progress}%</b>
+      ${MILESTONES.map((n,i)=>`<label class="check"><input type="checkbox" data-ms="${i+1}" ${t.milestones[i]?'checked':''} ${open?'':'disabled'}> ${esc(n)}</label>`).join('')}
+      ${t.status==='Ready for Final Review'?'<p class="small">All milestones done. Waiting for final faculty review.</p>':''}</div>`;
+    h+=`<div class="box"><h2>Work updates</h2>${open?`<label>Latest work update<textarea id="up" maxlength="2000" placeholder="What did the team complete? Any issues?"></textarea></label><button class="btn" data-act="update">Save update</button>`:''}
+      ${t.updates.length?t.updates.map(u=>`<p class="timeline"><span class="small">${new Date(u.at).toLocaleString()} · ${esc(u.author)}</span><br>${esc(u.body)}</p>`).join(''):'<p class="small">No updates yet.</p>'}</div>`;
+  }
+  app.innerHTML=h;
+}
+</script></body></html>

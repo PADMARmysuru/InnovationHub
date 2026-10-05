@@ -1,0 +1,59 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Projects · Innovation Hub</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..900&family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="css/style.css"></head><body>
+<main><h1>Choose a project</h1><p class="lead">Each project maps to Digital Design Explorer topics. Major projects add memory, addressing and testing. One team per project.</p>
+<div id="banner"></div>
+<div class="filters"><input id="q" type="search" placeholder="Search projects or topics"><div class="tabs" id="tabs"><button data-t="All" class="on">All</button><button data-t="Mini">Mini</button><button data-t="Major">Major</button><button data-t="Research">Research</button></div><label class="check inline"><input type="checkbox" id="freeOnly"> Available only</label></div>
+<div id="list"></div><div class="msg" id="m" hidden></div></main>
+<script src="js/config.js"></script><script src="js/hub.js"></script><script src="js/data.js"></script>
+<script>
+const HEADINGS={Mini:'Innovative Digital Design applications',Major:'Integrated Design + Memory + Testing',Research:'Advanced investigation'};
+let taken=new Set(), state=null, filter='All';
+(async()=>{
+  const user=await renderShell("projects.html");
+  try{ taken=new Set((await rpc('hub_taken_projects')||[]).map(r=>r.project_title)); }catch(e){ msg(m,errText(e),'error'); }
+  if(user){ try{ state=await srpc('hub_my_state'); }catch(e){} }
+  banner.innerHTML=bannerHtml(); render();
+})();
+function canSelect(){ const t=state&&state.profile&&state.team; return t && t.leader_id===state.profile.id && t.status==='Forming'; }
+function bannerHtml(){
+  if(!state||!state.profile) return '<div class="box note"><a href="login.html">Log in</a> and form a team to select a project. Only the team leader can select.</div>';
+  const t=state.team;
+  if(!t) return '<div class="box note">You are not in a team yet. <a href="student.html">Create or join a team</a> first.</div>';
+  if(t.project_title) return '<div class="box note">🔒 Your team <b>'+esc(t.name)+'</b> has selected <b>'+esc(t.project_title)+'</b>. <a href="student.html">Open My Team</a></div>';
+  if(t.leader_id!==state.profile.id) return '<div class="box note">Your team leader selects the project for <b>'+esc(t.name)+'</b>.</div>';
+  return '<div class="box note ok">You are the leader of <b>'+esc(t.name)+'</b>. Choose one available project.</div>';
+}
+function render(){
+  const q=document.getElementById('q').value.trim().toLowerCase(), free=freeOnly.checked;
+  list.innerHTML='';
+  ['Mini','Major','Research'].filter(t=>filter==='All'||filter===t).forEach(t=>{
+    const items=PROJECTS.filter(p=>p.type===t && (!free||!taken.has(p.title)) &&
+      (!q || (p.title+' '+p.idea+' '+p.topics+' '+p.learn.join(' ')).toLowerCase().includes(q)));
+    if(!items.length) return;
+    const s=document.createElement('section');
+    s.innerHTML='<div class="sec-head"><h2>'+t+' projects</h2><p>'+HEADINGS[t]+' · '+items.length+' shown</p></div><div class="grid"></div>';
+    const g=s.querySelector('.grid');
+    items.forEach(p=>{
+      const isTaken=taken.has(p.title), mine=state&&state.team&&state.team.project_title===p.title;
+      const btn= mine?'<span class="status s-green">Your team’s project</span>'
+        : isTaken?'<button class="btn" disabled>🔒 Taken</button>'
+        : canSelect()?'<button class="btn" data-sel="'+esc(p.title)+'">Select for my team</button>'
+        : '<span class="status s-blue">Available</span>';
+      const a=document.createElement('article'); a.dataset.type=p.type; if(isTaken&&!mine) a.className='taken';
+      a.innerHTML='<span class="type">'+p.type+'</span><h3>'+esc(p.title)+'</h3><p>'+esc(p.idea)+'</p><p><b>Topics:</b> '+esc(p.topics)+'</p>'+
+        '<div class="learning-map"><strong>📚 Read first in Digital Design Explorer</strong><div class="module-links">'+p.learn.map(topicLink).join('')+'</div></div>'+btn;
+      g.appendChild(a);
+    });
+    list.appendChild(s);
+  });
+  if(!list.children.length) list.innerHTML='<p>No projects match.</p>';
+}
+list.addEventListener('click',async e=>{
+  const title=e.target.dataset&&e.target.dataset.sel; if(!title) return;
+  if(!confirm('Select "'+title+'" for your team? It will be locked to your team.')) return;
+  e.target.disabled=true;
+  try{ await srpc('hub_select_project',{p_title:title}); location='student.html'; }
+  catch(err){ alert(errText(err)); location.reload(); }
+});
+q.oninput=render; freeOnly.onchange=render;
+tabs.onclick=e=>{ if(!e.target.dataset.t) return; filter=e.target.dataset.t; [...tabs.children].forEach(b=>b.classList.toggle('on',b===e.target)); render(); };
+</script></body></html>

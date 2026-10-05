@@ -1,0 +1,92 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Faculty Dashboard · Innovation Hub</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..900&family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="css/style.css"></head><body>
+<main><h1>Project Approval &amp; Monitoring</h1>
+<div class="msg" id="m" hidden></div>
+<div id="loginBox" class="box narrowbox" hidden><h2>Faculty login</h2><p>Use your Digital Design Explorer <b>Teacher Login</b> email and password.</p>
+<form id="f"><label>Email<input id="email" type="email" required autocomplete="email"></label><label>Password<input id="pw" type="password" required autocomplete="current-password"></label><button class="btn">Log in</button></form></div>
+<div id="dash" hidden>
+  <div class="stats" id="stats"></div>
+  <div class="filters"><input id="q" type="search" placeholder="Search team, USN, student or project">
+    <select id="fs"><option value="">All statuses</option><option>Forming</option><option>Selected</option><option>Pending Approval</option><option>Changes Required</option><option>Approved</option><option>Ready for Final Review</option><option>Completed</option></select>
+    <select id="fsem"><option value="">All semesters</option></select>
+    <select id="fsec"><option value="">All sections</option></select>
+    <button class="btn ghost" id="csv">Download CSV</button><button class="btn ghost" id="flogout">Faculty log out</button></div>
+  <div id="teams"></div>
+</div>
+</main>
+<script src="js/config.js"></script><script src="js/hub.js"></script>
+<script>
+let all=[];
+(async()=>{
+  await renderShell("faculty.html");
+  if(!teacherToken()) return showLogin();
+  await enter();
+})();
+function showLogin(text){ loginBox.hidden=false; dash.hidden=true; if(text) msg(m,text,'error'); }
+async function enter(){
+  try{ loginBox.hidden=true; dash.hidden=false; msg(m,''); await load(); }
+  catch(e){ sset(TEACHER_TOKEN,null); showLogin(errText(e)); }
+}
+f.onsubmit=async e=>{
+  e.preventDefault(); msg(m,'Logging in…');
+  try{
+    const r=await rpc('dde_teacher_login',{p_email:email.value.trim(),p_password:pw.value});
+    if(!r||!r.ok) return msg(m,'Email or password is incorrect.','error');
+    sset(TEACHER_TOKEN,r.token); await enter();
+  }catch(err){ msg(m,errText(err),'error'); }
+};
+flogout.onclick=async()=>{ try{ await rpc('dde_logout',{p_token:teacherToken()}); }catch(e){} sset(TEACHER_TOKEN,null); location.reload(); };
+async function load(){
+  all=await trpc('hub_faculty_teams')||[];
+  const sems=[...new Set(all.map(t=>t.semester))].sort(), secs=[...new Set(all.map(t=>t.section))].sort();
+  fsem.innerHTML='<option value="">All semesters</option>'+sems.map(s=>`<option>${+s}</option>`).join('');
+  fsec.innerHTML='<option value="">All sections</option>'+secs.map(s=>`<option>${esc(s)}</option>`).join('');
+  render();
+}
+function render(){
+  const count=s=>all.filter(t=>t.status===s).length;
+  stats.innerHTML=[['Teams',all.length],['Pending approval',count('Pending Approval')],['In progress',count('Approved')],['Final review',count('Ready for Final Review')],['Completed',count('Completed')]]
+    .map(([l,n])=>`<div><b>${n}</b><span>${l}</span></div>`).join('');
+  const qq=q.value.trim().toLowerCase();
+  const list=all.filter(t=>(!fs.value||t.status===fs.value)&&(!fsem.value||String(t.semester)===fsem.value)&&(!fsec.value||t.section===fsec.value)&&
+    (!qq||[t.name,t.project_title,...t.members.map(x=>x.name+' '+x.usn)].join(' ').toLowerCase().includes(qq)));
+  // pending work first
+  const order={'Pending Approval':0,'Ready for Final Review':1,'Changes Required':2,'Approved':3,'Selected':4,'Forming':5,'Completed':6};
+  list.sort((a,b)=>order[a.status]-order[b.status]);
+  teams.innerHTML=list.length?list.map(card).join(''):'<p>No teams match.</p>';
+}
+function card(t){
+  const acc=t.members.filter(x=>x.status==='accepted');
+  const btn=(a,label,cls)=>`<button class="btn ${cls||''}" data-a="${a}" data-id="${+t.id}">${label}</button>`;
+  let actions='';
+  if(t.status==='Pending Approval') actions=btn('approve','Approve')+btn('changes','Changes required','danger')+btn('reject','Reject','danger');
+  else if(t.status==='Ready for Final Review') actions=btn('complete','Final approve & issue certificates')+btn('unlock','Unlock / allow project change','danger');
+  else if(['Approved','Selected','Changes Required'].includes(t.status)) actions=btn('unlock','Unlock / allow project change','danger');
+  return `<details class="box team" ${['Pending Approval','Ready for Final Review'].includes(t.status)?'open':''}>
+    <summary><span><b>${esc(t.name)}</b> <span class="small">Sem ${+t.semester} · Sec ${esc(t.section)} · ${acc.length} members</span><br>${esc(t.project_title||'No project selected')}</span>${statusBadge(t.status)}</summary>
+    <ul class="members">${t.members.map(x=>`<li><span>${esc(x.name)} <span class="small">${esc(x.usn)}</span>${x.role==='leader'?' <span class="status s-blue">Leader</span>':''}${x.status==='invited'?' <span class="status s-amber">Invited</span>':''}</span></li>`).join('')}</ul>
+    ${t.project_title?`<p><b>${esc(t.project_type)} project:</b> ${esc(t.project_title)}</p><p><b>Proposed innovation:</b> ${esc(t.innovation||'—')}</p>`:''}
+    ${['Approved','Ready for Final Review','Completed'].includes(t.status)?`<div class="bar"><i style="width:${+t.progress}%"></i></div><p class="small">${+t.progress}% · ${MILESTONES.map((n,i)=>(t.milestones[i]?'✅ ':'⬜ ')+esc(n)).join(' · ')}</p>`:''}
+    ${t.updates.length?`<details><summary class="small">Work updates (${t.updates.length})</summary>${t.updates.map(u=>`<p class="timeline"><span class="small">${new Date(u.at).toLocaleString()} · ${esc(u.author)}</span><br>${esc(u.body)}</p>`).join('')}</details>`:''}
+    ${t.faculty_remark?`<p class="small"><b>Last remark:</b> ${esc(t.faculty_remark)}</p>`:''}
+    ${actions?`<textarea id="r${+t.id}" placeholder="Remark for the team (shown to students)"></textarea><div class="btns">${actions}</div>`:''}
+  </details>`;
+}
+teams.addEventListener('click',async e=>{
+  const b=e.target.closest('[data-a]'); if(!b) return;
+  const a=b.dataset.a, id=+b.dataset.id, remark=(document.getElementById('r'+id)||{}).value||'';
+  const ask={approve:'Approve this proposal?',changes:'Return the proposal for changes? The team keeps the project.',reject:'Reject? The project will be released for other teams.',unlock:'Unlock? The project is released and progress is reset.',complete:'Final approve and issue a certificate to every member?'}[a];
+  if(['changes','reject'].includes(a)&&!remark.trim()) return alert('Please write a remark so the team knows what to change.');
+  if(!confirm(ask)) return;
+  b.disabled=true;
+  try{ await trpc('hub_faculty_action',{p_team:id,p_action:a,p_remark:remark.trim()||null}); msg(m,'Done.','ok'); await load(); }
+  catch(err){ msg(m,errText(err),'error'); b.disabled=false; }
+});
+[q,fs,fsem,fsec].forEach(x=>x.oninput=render);
+csv.onclick=()=>{
+  const rows=[['Team','Semester','Section','Status','Project','Type','Progress %','Role','Student','USN']];
+  all.forEach(t=>t.members.filter(x=>x.status==='accepted').forEach(x=>rows.push([t.name,t.semester,t.section,t.status,t.project_title||'',t.project_type||'',t.progress,x.role,x.name,x.usn])));
+  const text=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+text],{type:'text/csv'}));
+  a.download='innovation-hub-teams-'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+};
+</script></body></html>
