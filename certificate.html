@@ -1,0 +1,33 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Certificate · Innovation Hub</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..900&family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="css/style.css"></head><body class="certbody">
+<main>
+<div class="msg" id="m" hidden></div>
+<div id="view"></div>
+<div class="box noprint" id="verifyBox"><h2>Verify a certificate</h2><p>Enter the certificate ID printed on the certificate.</p>
+<div class="inline-form"><input id="cid" placeholder="DVIH-26-XXXXXXXX"><button class="btn" id="vb">Verify</button></div></div>
+</main>
+<script src="js/config.js"></script><script src="js/hub.js"></script>
+<script>
+(async()=>{
+  const user=await renderShell("certificate.html");
+  const id=new URLSearchParams(location.search).get('id');
+  if(id){ cid.value=id; return show(id); }
+  if(user){
+    try{
+      const st=await srpc('hub_my_state');
+      if(st&&st.certificates.length){ view.innerHTML='<div class="box noprint"><h2>My certificates</h2>'+st.certificates.map(c=>`<p><a class="btn" href="?id=${encodeURIComponent(c.cert_id)}">${esc(c.project_title)} · ${esc(c.cert_id)}</a></p>`).join('')+'</div>'; }
+      else view.innerHTML='<div class="box"><h2>🔒 No certificate yet</h2><p>Certificates are issued to every team member after final faculty approval.</p></div>';
+    }catch(e){ msg(m,errText(e),'error'); }
+  }
+})();
+async function show(id){
+  try{
+    const c=await rpc('hub_verify_certificate',{p_id:id});
+    if(!c){ view.innerHTML=''; return msg(m,'No certificate found with this ID.','error'); }
+    msg(m,'✔ Verified: this certificate was issued by the Digital-VLSI Innovation Hub.','ok');
+    const verifyUrl=location.origin+location.pathname+'?id='+encodeURIComponent(c.cert_id);
+    view.innerHTML=`<div class="certificate"><small>DIGITAL-VLSI INNOVATION HUB</small><h1>Certificate of Project Completion</h1><p>This is to certify that</p><h2>${esc(c.student_name)}</h2><p>${esc(c.usn)}</p><p>as a member of team <b>${esc(c.team_name)}</b>, has successfully completed the ${esc(c.project_type)} project</p><h2>${esc(c.project_title)}</h2><p>under the guidance of</p><h3>Mrs. Padma R</h3><p>Assistant Professor, Department of ECE, GSSSIETW, Mysuru</p><hr><p>Issued on ${new Date(c.issued_on).toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})} · Certificate ID: <b>${esc(c.cert_id)}</b></p><p class="small">Verify at ${esc(verifyUrl)}</p></div>
+      <p class="noprint center-text"><button class="btn" onclick="print()">Print / Save as PDF</button></p>`;
+  }catch(e){ msg(m,errText(e),'error'); }
+}
+vb.onclick=()=>{ if(cid.value.trim()) location.search='?id='+encodeURIComponent(cid.value.trim()); };
+</script></body></html>

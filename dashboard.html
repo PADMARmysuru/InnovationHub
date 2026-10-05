@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>My Progress | Digital-VLSI Innovation Hub</title><link rel="stylesheet" href="css/style.css"></head>
+<body>
+<header class="topbar"><div class="brand"><span class="brand-mark">D</span><div><strong>Digital-VLSI Innovation Hub</strong><small>Design • Innovate • Research</small></div></div>
+<nav><a href="index.html">Home</a><a href="projects.html">Projects</a><a class="active" href="dashboard.html">My Progress</a><a href="faculty.html">Faculty</a></nav></header>
+<main class="page">
+<section class="page-title"><span class="eyebrow">STUDENT WORKSPACE</span><h1>My Project Progress</h1><p>Prototype tracking dashboard. Enter your project details and update milestones as you work.</p></section>
+<section class="panel">
+<div class="form-grid">
+<label>Student Name<input id="studentName" placeholder="Enter name"></label>
+<label>USN<input id="usn" placeholder="4GWxxECxxx"></label>
+<label>Project Type<select id="ptype"><option>Mini</option><option>Major</option><option>Research</option></select></label>
+<label>Project Title<input id="ptitle" placeholder="Select or enter project title"></label>
+</div>
+<button class="btn primary" id="saveProject">Save Project</button>
+</section>
+<section class="stats">
+<div class="stat"><small>PROJECT</small><strong id="dashTitle">Not selected</strong></div>
+<div class="stat"><small>TYPE</small><strong id="dashType">—</strong></div>
+<div class="stat"><small>PROGRESS</small><strong id="dashProgress">0%</strong></div>
+<div class="stat"><small>STATUS</small><strong id="dashStatus">Not started</strong></div>
+</section>
+<section class="panel">
+<div class="section-head"><div><span class="eyebrow">MILESTONES</span><h2>Track your work</h2></div></div>
+<div class="milestones">
+<label><input type="checkbox" class="mile"> Problem definition & objectives</label>
+<label><input type="checkbox" class="mile"> Block diagram & architecture</label>
+<label><input type="checkbox" class="mile"> RTL/design implementation</label>
+<label><input type="checkbox" class="mile"> Simulation & verification</label>
+<label><input type="checkbox" class="mile"> Testing / results</label>
+<label><input type="checkbox" class="mile"> Documentation & presentation</label>
+</div>
+<textarea id="updateText" placeholder="Latest work update, challenge or next activity..."></textarea>
+<button class="btn primary" id="saveUpdate">Save Update</button>
+<div id="timeline"></div>
+</section>
+</main>
+<footer><strong>Mrs. Padma R</strong><span>Assistant Professor · ECE · GSSSIETW, Mysuru</span></footer>
+<script src="js/app.js"></script>
+</body>
+</html>
